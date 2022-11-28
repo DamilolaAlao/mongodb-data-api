@@ -8,28 +8,16 @@ type Projection = FindOptions['projection']
 type NoInfer<A extends any> = [A][A extends any ? 0 : never]
 
 type AnyKeys<T> = { [P in keyof T]?: T[P] | any }
-type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never }
-type XOR<T, U> = T | U extends object ? (Without<T, U> & U) | (Without<U, T> & T) : T | U
 
-/**
- * Specific region of endpoint.
- * @link https://docs.atlas.mongodb.com/api/data-api-resources/#regional-requests
- */
-export enum Region {
-  Virginia = 'us-east-1',
-  Oregon = 'us-west-2',
-  Ireland = 'eu-west-1',
-  Sydney = 'ap-southeast-2'
+let baseurl: string = 'http://localhost:8080'
+
+const config = {
+  apiKey: ''
 }
 
 // https://docs.atlas.mongodb.com/api/data-api-resources/#base-url
-const getUrlEndpoint = (appId: string, region?: Region) => {
-  return region
-    ? `https://${region}.aws.data.mongodb-api.com/app/${appId}/endpoint/data/beta`
-    : `https://data.mongodb-api.com/app/${appId}/endpoint/data/beta`
-}
-const getActionUrl = (endpoint: string, action: string) => {
-  return `${endpoint}/action/${action}`
+const getActionUrl = (action: string) => {
+  return `${baseurl}/action/${action}`
 }
 
 type ExtendBaseParams<T> = BaseParams & T
@@ -40,85 +28,21 @@ interface BaseParams {
   [key: string]: any
 }
 
-interface BaseConfig {
-  /**
-   * Specific Data API key.
-   * @link https://docs.atlas.mongodb.com/api/data-api/#2.-create-a-data-api-key
-   */
-  apiKey: string
-}
-interface UrlEndpointConfig extends BaseConfig {
-  /**
-   * Specific URL Endpoint.
-   * @link https://docs.atlas.mongodb.com/api/data-api/#3.-send-a-data-api-request
-   */
-  urlEndpoint: string
-}
-interface PackEndpointConfig extends BaseConfig {
-  /**
-   * Specific Data App ID.
-   * @link https://docs.atlas.mongodb.com/api/data-api/#3.-send-a-data-api-request
-   */
-  appId: string
-  region?: Region
+const baseParams = {
+  dataSource: 'Cluster0',
+  database: 'untitledtesty2',
+  collection: ''
 }
 
-export type Config = XOR<UrlEndpointConfig, PackEndpointConfig>
-
-export class MongoDBDataAPI<InnerDoc = Document> {
-  #config: Config
-  #baseParams: BaseParams
-  #axios: AxiosInstance
-
-  constructor(config: Config, baseParams?: BaseParams, axios?: AxiosInstance) {
-    if (!config.apiKey) {
-      throw new Error('Invalid API key!')
-    }
-
-    this.#config = config
-    this.#baseParams = baseParams || {}
-    this.#axios = axios || _axios.create()
-  }
-
-  #newAPI<D>(params: BaseParams) {
-    return new MongoDBDataAPI<D>(
-      { ...this.#config },
-      {
-        ...this.#baseParams,
-        ...params
-      }
-    )
-  }
-
-  /** Select a cluster. */
-  public $cluster(clusterName: string) {
-    return this.#newAPI<InnerDoc>({ dataSource: clusterName }) as Omit<
-      MongoDBDataAPI<InnerDoc>,
-      '$cluster' | '$collection'
-    >
-  }
-
-  /** Select a database. */
-  public $database(database: string) {
-    return this.#newAPI<InnerDoc>({ database }) as Omit<
-      MongoDBDataAPI<InnerDoc>,
-      '$cluster' | '$database'
-    >
-  }
-
-  /** Select a collection. */
-  public $collection<Doc = InnerDoc>(collection: string) {
-    return this.#newAPI<Doc>({ collection }) as Omit<
-      MongoDBDataAPI<Doc>,
-      '$cluster' | '$database' | '$collection'
-    >
-  }
+class MongoDBDataAPI<InnerDoc = Document> {
+  #baseParams: BaseParams = baseParams
+  #axios: AxiosInstance = _axios.create()
 
   /**
    * Execute a API action.
    * @link https://docs.atlas.mongodb.com/api/data-api-resources/
    */
-  public $$action<Result = unknown>(
+  #action<Result = unknown>(
     name: string,
     params: BaseParams = {},
     axiosConfig?: AxiosRequestConfig
@@ -132,18 +56,14 @@ export class MongoDBDataAPI<InnerDoc = Document> {
       return Promise.reject('Invalid params: dataSource, database, collection')
     }
 
-    const API_KEY_FIELD = 'api-key'
-
     return this.#axios({
       method: 'post',
       data: JSON.stringify(mergedParams),
-      url: this.#config.urlEndpoint
-        ? getActionUrl(this.#config.urlEndpoint, name)
-        : getActionUrl(getUrlEndpoint(this.#config.appId!, this.#config.region), name),
+      url: getActionUrl(name),
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Request-Headers': '*',
-        [API_KEY_FIELD]: this.#config.apiKey
+        Authorization: 'Bearer ' + config?.apiKey
       },
       ...axiosConfig
     })
@@ -151,9 +71,8 @@ export class MongoDBDataAPI<InnerDoc = Document> {
         return response.data
       })
       .catch((error) => {
+        console.log(error)
         // https://docs.atlas.mongodb.com/api/data-api-resources/#error-codes
-        const errorJSON = error.toJSON()
-        errorJSON.config.headers[API_KEY_FIELD] = '*****'
         return Promise.reject(error.toJSON())
       })
   }
@@ -168,7 +87,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
       projection?: Projection
     }>
   ) {
-    return this.$$action<{ document: D | null }>('findOne', params)
+    return this.#action<{ document: D | null }>('findOne', params)
   }
 
   /**
@@ -184,7 +103,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
       skip?: number
     }>
   ) {
-    return this.$$action<{ documents: Array<D> }>('find', params)
+    return this.#action<{ documents: Array<D> }>('find', params)
   }
 
   /**
@@ -194,7 +113,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
   public insertOne<D = InnerDoc, T = NoInfer<D>>(
     params: ExtendBaseParams<{ document: AnyKeys<T> | Document }>
   ) {
-    return this.$$action<{ insertedId: string }>('insertOne', params)
+    return this.#action<{ insertedId: string }>('insertOne', params)
   }
 
   /**
@@ -204,7 +123,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
   public insertMany<D = InnerDoc, T = NoInfer<D>>(
     params: ExtendBaseParams<{ documents: Array<AnyKeys<T> | Document> }>
   ) {
-    return this.$$action<{ insertedIds: Array<string> }>('insertMany', params)
+    return this.#action<{ insertedIds: Array<string> }>('insertMany', params)
   }
 
   /**
@@ -218,7 +137,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
       upsert?: boolean
     }>
   ) {
-    return this.$$action<{
+    return this.#action<{
       matchedCount: number
       modifiedCount: number
       upsertedId?: string
@@ -236,7 +155,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
       upsert?: boolean
     }>
   ) {
-    return this.$$action<{
+    return this.#action<{
       matchedCount: number
       modifiedCount: number
       upsertedId?: string
@@ -254,7 +173,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
       upsert?: boolean
     }>
   ) {
-    return this.$$action<{
+    return this.#action<{
       matchedCount: number
       modifiedCount: number
       upsertedId?: string
@@ -268,7 +187,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
   public deleteOne<D = InnerDoc, T = NoInfer<D>>(
     params: ExtendBaseParams<{ filter: Filter<T> }>
   ) {
-    return this.$$action<{ deletedCount: number }>('deleteOne', params)
+    return this.#action<{ deletedCount: number }>('deleteOne', params)
   }
 
   /**
@@ -278,7 +197,7 @@ export class MongoDBDataAPI<InnerDoc = Document> {
   public deleteMany<D = InnerDoc, T = NoInfer<D>>(
     params: ExtendBaseParams<{ filter: Filter<T> }>
   ) {
-    return this.$$action<{ deletedCount: number }>('deleteMany', params)
+    return this.#action<{ deletedCount: number }>('deleteMany', params)
   }
 
   /**
@@ -288,10 +207,25 @@ export class MongoDBDataAPI<InnerDoc = Document> {
   public aggregate<T extends Array<any>>(
     params: ExtendBaseParams<{ pipeline: Array<Document> }>
   ) {
-    return this.$$action<{ documents: T }>('aggregate', params)
+    return this.#action<{ documents: T }>('aggregate', params)
   }
 }
 
-export const createMongoDBDataAPI = (config: Config, axios?: AxiosInstance) => {
-  return new MongoDBDataAPI(config, void 0, axios)
+export class createDB {
+  constructor(apiKey?: string) {
+    // Constructor
+    if (apiKey) {
+      config.apiKey = apiKey
+    } else {
+      baseurl = 'http://localhost:8080/anon'
+    }
+  }
+
+  public createModel<Doc = any>(modelname: string) {
+    if (!modelname) {
+      throw new Error('Invalid Model Name')
+    }
+    baseParams.collection = modelname
+    return new MongoDBDataAPI<Doc>()
+  }
 }
