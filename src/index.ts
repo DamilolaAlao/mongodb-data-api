@@ -212,12 +212,12 @@ class MongoDBDataAPI<InnerDoc = Document> {
 }
 
 export class createDB {
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, url?: string) {
     // Constructor
     if (apiKey) {
       config.apiKey = apiKey
     } else {
-      baseurl = 'http://localhost:8080/anon'
+      baseurl = url || `${baseurl}/anon`
     }
   }
 
