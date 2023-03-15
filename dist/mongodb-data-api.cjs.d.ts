@@ -162,7 +162,7 @@ declare class MongoDBDataAPI<InnerDoc = Document> {
     }>;
 }
 declare class createDB {
-    constructor(apiKey?: string, url?: string);
+    constructor(url?: string, apiKey?: string);
     createModel<Doc = any>(modelname: string): MongoDBDataAPI<Doc>;
 }
 export { createDB };

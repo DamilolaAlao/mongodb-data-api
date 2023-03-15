@@ -142,7 +142,7 @@ _MongoDBDataAPI_baseParams = new WeakMap(), _MongoDBDataAPI_axios = new WeakMap(
         return Promise.reject(error.toJSON());
     });
 };
-var createDB = function createDB(apiKey, url) {
+var createDB = function createDB(url, apiKey) {
     // Constructor
     if (apiKey) {
         config.apiKey = apiKey;

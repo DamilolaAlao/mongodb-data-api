@@ -212,7 +212,7 @@ class MongoDBDataAPI<InnerDoc = Document> {
 }
 
 export class createDB {
-  constructor(apiKey?: string, url?: string) {
+  constructor(url?: string, apiKey?: string) {
     // Constructor
     if (apiKey) {
       config.apiKey = apiKey
