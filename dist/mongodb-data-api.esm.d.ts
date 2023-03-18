@@ -25,7 +25,9 @@ declare class MongoDBDataAPI<InnerDoc = Document> {
         filter?: Filter<T>;
         projection?: Projection;
     }>): Promise<{
-        document: D | null;
+        document: (D & {
+            _id: string;
+        }) | null;
     }>;
     /**
      * Find Multiple Documents.
@@ -42,7 +44,9 @@ declare class MongoDBDataAPI<InnerDoc = Document> {
         limit?: number;
         skip?: number;
     }>): Promise<{
-        documents: Array<D>;
+        documents: Array<D & {
+            _id: string;
+        }>;
     }>;
     /**
      * Insert a Single Document.
