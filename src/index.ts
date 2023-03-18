@@ -87,7 +87,7 @@ class MongoDBDataAPI<InnerDoc = Document> {
       projection?: Projection
     }>
   ) {
-    return this.#action<{ document: D | null }>('findOne', params)
+    return this.#action<{ document: (D & { _id: string }) | null }>('findOne', params)
   }
 
   /**
@@ -103,7 +103,7 @@ class MongoDBDataAPI<InnerDoc = Document> {
       skip?: number
     }>
   ) {
-    return this.#action<{ documents: Array<D> }>('find', params)
+    return this.#action<{ documents: Array<D & { _id: string }> }>('find', params)
   }
 
   /**
